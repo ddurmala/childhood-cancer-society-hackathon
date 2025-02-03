@@ -2,8 +2,8 @@ require("dotenv").config();
 
 const express = require("express");
 const cors = require("cors");
-
-const { fetchUniswapSwap } = require("./fetchData");
+const { fetchAndSaveUniswapSwap } = require("./fetchData");
+const db = require("./db");
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -11,34 +11,42 @@ const PORT = process.env.PORT || 3001;
 app.use(cors());
 app.use(express.json());
 
-// ✅ Test route
+// Test route
 app.get("/", (req, res) => {
     res.send("Backend is running!");
 });
 
-// ✅ Corrected: Add Uniswap swap endpoint
+// Fetch & Save Uniswap real-time swap price
 app.get("/uniswap-swap", async (req, res) => {
-    const amount = req.query.amount;
-    if (!amount) {
-        return res.status(400).json({ error: "Missing amount parameter" });
-    }
-
-    console.log(`🔄 Fetching Uniswap swap for ${amount} WETH...`);
     try {
-        const swapData = await fetchUniswapSwap(amount);
+        const amount = req.query.amount || "1"; // Default to 1 WETH if no amount is specified
+        console.log(`🔄 Fetching Uniswap Swap for ${amount} WETH...`);
+
+        const swapData = await fetchAndSaveUniswapSwap(amount);
 
         if (!swapData) {
-            return res.status(404).json({ error: "No Uniswap swap data found." });
+            return res.status(404).json({ message: "No Uniswap data found." });
         }
 
-        res.json({ message: "Uniswap swap fetched successfully!", swapData });
+        res.json({ message: "Uniswap swap fetched & saved successfully!", swapData });
     } catch (error) {
         console.error("❌ Error fetching Uniswap swap:", error);
-        res.status(500).json({ error: "Internal server error", details: error.message });
+        res.status(500).json({ message: "Internal server error", error: error.message });
     }
 });
 
-// ✅ Start the server
+// Retrieve all saved swaps
+app.get("/uniswap-swaps", async (req, res) => {
+    try {
+        const result = await db.query("SELECT * FROM uniswap_swaps ORDER BY timestamp DESC");
+        res.json(result.rows);
+    } catch (error) {
+        console.error("❌ Error retrieving swaps:", error);
+        res.status(500).json({ message: "Internal server error", error: error.message });
+    }
+});
+
+//Start server
 app.listen(PORT, () => {
-    console.log(`Server is running on http://localhost:${PORT}`);
+    console.log(`🚀 Server is running on http://localhost:${PORT}`);
 });
