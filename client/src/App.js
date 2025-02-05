@@ -1,11 +1,13 @@
 import React from "react";
-import SwapTable from "./components/SwapTable";
+
+import SwapChart from "./components/SwapChart";
+
 
 function App() {
   return (
-    <div>
-      <h1>Uniswap Swap Data</h1>
-      <SwapTable />
+    <div className="container mt-5">
+      <h1 className="text-center">Uniswap Swap Data</h1>
+      <SwapChart />
     </div>
   );
 }

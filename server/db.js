@@ -1,18 +1,13 @@
 require("dotenv").config();
-const { Pool } = require("pg");
 
-// ✅ Load PostgreSQL credentials from .env
+const { Pool } = require("pg");
+require("dotenv").config();
+
 const pool = new Pool({
-    user: process.env.PG_USER,       // PostgreSQL username
-    host: process.env.PG_HOST,       // Usually "localhost"
-    database: process.env.PG_DATABASE, // Your database name (swap_data)
-    password: process.env.PG_PASSWORD, // Your database password
-    port: process.env.PG_PORT || 5432, // Default PostgreSQL port
+    connectionString: process.env.DATABASE_URL, // Ensure this is set in your .env file
+    ssl: process.env.NODE_ENV === "production" ? { rejectUnauthorized: false } : false
 });
 
-// Check connection
-pool.connect()
-    .then(() => console.log("✅ Connected to PostgreSQL database."))
-    .catch((err) => console.error("❌ Database connection error:", err));
-
-module.exports = pool;
+module.exports = {
+    query: (text, params) => pool.query(text, params),
+};

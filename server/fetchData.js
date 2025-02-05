@@ -1,106 +1,70 @@
 require("dotenv").config();
-const { AlphaRouter } = require("@uniswap/smart-order-router");
-const { Token, CurrencyAmount, TradeType, ChainId } = require("@uniswap/sdk-core");
-const { ethers } = require("ethers");
-const db = require("./db");
-const fetch = require("node-fetch");
+const { fetchBinanceTrades } = require("./fetchBinanceTrades");
+const { saveTrade } = require("./saveData");
 
-// Load MetaMask Developer API Key from .env
-const INFURA_RPC_URL = process.env.INFURA_RPC_URL;
-if (!INFURA_RPC_URL) {
-    throw new Error("❌ INFURA_RPC_URL is missing from .env file!");
-}
+const fetch = (...args) => import('node-fetch').then(({ default: fetch }) => fetch(...args));
 
-// Create Ethereum Provider
-const provider = new ethers.providers.JsonRpcProvider(INFURA_RPC_URL);
+const DUNE_API_KEY = process.env.DUNE_API_KEY;
+const CUSTOM_ENDPOINT_URL = "https://api.dune.com/api/v1/endpoints/ddurmala/uniswapv2/results";
 
-// Uniswap Token Addresses
-const WETH_ADDRESS = "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2";
-const USDT_ADDRESS = "0xdAC17F958D2ee523a2206206994597C13D831ec7";
+async function fetchUniswapV2Swaps() {
+    console.log("🔄 Fetching Uniswap V2 swaps from Dune Custom Endpoint...");
 
-// Tokens
-const WETH = new Token(ChainId.MAINNET, WETH_ADDRESS, 18, "WETH", "Wrapped Ether");
-const USDT = new Token(ChainId.MAINNET, USDT_ADDRESS, 6, "USDT", "Tether");
-
-
-const router = new AlphaRouter({ chainId: ChainId.MAINNET, provider });
-
-async function fetchMidPrice() {
     try {
-        console.log("🔄 Fetching Mid-Price from CoinGecko...");
+        const response = await fetch(`${CUSTOM_ENDPOINT_URL}?limit=100`, {
+            headers: { "X-Dune-API-Key": DUNE_API_KEY }
+        });
 
-        const response = await fetch("https://api.coingecko.com/api/v3/simple/price?ids=ethereum&vs_currencies=usd");
+        if (!response.ok) {
+            throw new Error(`❌ Failed to fetch data: ${response.statusText}`);
+        }
+
         const data = await response.json();
+        const swaps = data.result.rows;
 
-        // Debug
-        console.log("🔍 CoinGecko API Response:", data);
-
-        if (!data.ethereum || !data.ethereum.usd) {
-            console.error("❌ Error: CoinGecko price data is incomplete.");
-            return null;
+        if (!swaps || swaps.length === 0) {
+            console.warn("⚠️ No swaps found for Uniswap V2.");
+            return;
         }
 
-        const midPrice = data.ethereum.usd;
-        console.log(`✅ CoinGecko Mid-Price: ${midPrice.toFixed(6)} USDT`);
+        for (let swap of swaps) {
+            console.log("🛠 DEBUG: Swap Data ->", swap);
 
-        return midPrice.toFixed(6);
+            await saveTrade(
+                "Uniswap V2",
+                parseFloat(swap.amount_in),
+                parseFloat(swap.amount_out),
+                swap.token_in,
+                swap.token_out,
+                swap.gas_used ? parseFloat(swap.gas_used) : 0,
+                swap.block_time
+            );
+        }
+
+        console.log(`✅ Successfully fetched & saved ${swaps.length} Uniswap V2 swaps.`);
     } catch (error) {
-        console.error("❌ Error fetching CoinGecko mid-price:", error);
-        return null;
+        console.error("❌ Error fetching Uniswap V2 swaps:", error);
     }
 }
 
+async function fetchAllData() {
+    console.log("🚀 Fetching all swap data...");
 
-async function fetchUniswapV3Swap(amount) {
-    try {
-        console.log(`🔄 Fetching Uniswap V3 Swap for ${amount} WETH...`);
-        const wethAmount = CurrencyAmount.fromRawAmount(WETH, ethers.utils.parseUnits(amount, 18).toString());
-
-        const route = await router.route(wethAmount, USDT, TradeType.EXACT_INPUT);
-        if (!route) {
-            console.error("❌ No Uniswap V3 route found");
-            return null;
-        }
-
-        const amountOut = parseFloat(route.quote.toFixed(6));
-        const gasEstimate = route.estimatedGasUsed.toString();
-        const timestamp = new Date().toISOString();
-
-        console.log(`✅ Uniswap V3 Swap: ${amount} WETH → ${amountOut} USDT (Gas: ${gasEstimate})`);
-
-        // Fetch Binance Mid-Price
-        const binanceMidPrice = await fetchMidPrice();
-        if (!binanceMidPrice) {
-            console.warn("⚠️ Skipping Binance price comparison (couldn't fetch mid-price).");
-            return { amountOut, gasEstimate };
-        }
-
-        // Calculate price difference
-        const priceDifference = ((amountOut - binanceMidPrice) / binanceMidPrice) * 100;
-        console.log(`Price Difference: ${priceDifference.toFixed(2)}% (vs Binance Mid-Price: ${binanceMidPrice} USDT)`);
-
-        // Store Swap Data in PostgreSQL
-        await db.query(
-            `INSERT INTO uniswap_swaps (amount_in, amount_out, token_in, token_out, gas_estimate, timestamp, exchange, binance_mid_price, price_difference) 
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-            [amount, amountOut, "WETH", "USDT", gasEstimate, timestamp, "Uniswap V3", binanceMidPrice, priceDifference.toFixed(6)]
-        );
-
-        console.log("✅ Uniswap V3 swap saved to database!");
-        return { amountOut, gasEstimate, binanceMidPrice, priceDifference };
-    } catch (error) {
-        console.error("❌ Error fetching Uniswap V3 swap:", error);
-        return null;
-    }
-}
-
-//Fetch Swaps from ALL Exchanges
-
-async function fetchAllSwaps() {
-    console.log("🔄 Fetching Uniswap V2 and Cowswap swaps...");
+    console.log("🚀 Fetching both Uniswap V2 and Binance trades...");
     await fetchUniswapV2Swaps();
-    await fetchCowswapSwaps();
-    console.log("✅ Successfully fetched & saved swaps from Uniswap V2 & Cowswap!");
+    await fetchBinanceTrades();
+    console.log("✅ All trade data fetched.");
 }
 
-module.exports = { fetchUniswapV3Swap, fetchMidPrice, fetchAllSwaps };
+if (require.main === module) {
+    fetchAllData().then(() => {
+        console.log("✅ Finished fetching all data!");
+        process.exit(0);
+    }).catch((err) => {
+        console.error("❌ Error fetching data:", err);
+        process.exit(1);
+    });
+}
+
+
+module.exports = { fetchAllData, fetchUniswapV2Swaps };
