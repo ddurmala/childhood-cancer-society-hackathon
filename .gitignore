@@ -16,3 +16,5 @@ yarn-error.log
 
 # System files
 .DS_Store
+
+data/ETHUSDT-trades-2024-01.csv
