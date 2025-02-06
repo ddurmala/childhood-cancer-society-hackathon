@@ -32,7 +32,7 @@ const SwapChart = () => {
     return (
         <div style={{ width: "100%", textAlign: "center", padding: "20px" }}>
             <h2>Uniswap Swap Data</h2>
-            <p style={{ color: "#666" }}>Trade Size vs. Average Cost</p>
+            <p style={{ fontSize: "16px", fontWeight: "bold" }}>Trade Size vs. Average Cost</p>
             <p style={{ fontSize: "14px", color: "#777" }}>Data from January 2024</p>
 
             <Plot
