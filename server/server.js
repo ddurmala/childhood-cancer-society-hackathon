@@ -27,21 +27,33 @@ app.get("/fetch-all", async (req, res) => {
 });
 
 app.get("/swap-prices", async (req, res) => {
+    const { month, year } = req.query;
+
+    console.log(`🛠 API received request → month: ${month}, year: ${year}`);
+
+    if (!month || !year) {
+        return res.status(400).json({ error: "Month and year are required!" });
+    }
+
+    console.log(`🔍 Fetching swap data for ${month}/${year}`);
+
     try {
-        const result = await db.query(`
-            SELECT exchange, 
-                   amount_out AS trade_size, 
-                   amount_out / amount_in AS price
-            FROM swaps
-            WHERE token_in = 'WETH' AND token_out = 'USDT'
-            ORDER BY trade_size
-        `);
+        const result = await db.query(
+            `SELECT * FROM swaps WHERE EXTRACT(MONTH FROM timestamp) = $1 AND EXTRACT(YEAR FROM timestamp) = $2`,
+            [month, year]
+        );
+
+        if (!result.rows.length) {
+            console.warn(`No data found for ${month}/${year}`);
+        }
+
         res.json(result.rows);
     } catch (error) {
         console.error("❌ Error fetching swap prices:", error);
         res.status(500).json({ error: "Failed to fetch swap prices" });
     }
 });
+
 
 app.listen(PORT, () => {
     console.log(`🚀 Server is running on http://localhost:${PORT}`);

@@ -7,8 +7,13 @@ const fetch = (...args) => import('node-fetch').then(({ default: fetch }) => fet
 const DUNE_API_KEY = process.env.DUNE_API_KEY;
 const CUSTOM_ENDPOINT_URL = "https://api.dune.com/api/v1/endpoints/ddurmala/uniswapv2/results";
 
-async function fetchUniswapV2Swaps() {
+async function fetchUniswapV2Swaps(month, year) {
     console.log("🔄 Fetching Uniswap V2 swaps from Dune Custom Endpoint...");
+
+    if (!month || !year) {
+        console.error("❌ Month and year must be specified for fetching swaps.");
+        return;
+    }
 
     try {
         const response = await fetch(`${CUSTOM_ENDPOINT_URL}?limit=100`, {
@@ -23,7 +28,7 @@ async function fetchUniswapV2Swaps() {
         const swaps = data.result.rows;
 
         if (!swaps || swaps.length === 0) {
-            console.warn("⚠️ No swaps found for Uniswap V2.");
+            console.warn("⚠️ No swaps found for the selected month and year.");
             return;
         }
 
@@ -48,22 +53,31 @@ async function fetchUniswapV2Swaps() {
 }
 
 async function fetchAllData() {
-    console.log("🚀 Fetching all swap data...");
+    console.log(`🚀 Fetching all swap data for ${month}/${year}...`);
+
+    if (!month || !year) {
+        console.error("❌ Month and year must be provided.");
+        return;
+    }
 
     console.log("🚀 Fetching both Uniswap V2 and Binance trades...");
-    await fetchUniswapV2Swaps();
-    await fetchBinanceTrades();
+    await fetchUniswapV2Swaps(month, year);
+    await fetchBinanceTrades(month, year);
     console.log("✅ All trade data fetched.");
-}
 
-if (require.main === module) {
-    fetchAllData().then(() => {
-        console.log("✅ Finished fetching all data!");
-        process.exit(0);
-    }).catch((err) => {
-        console.error("❌ Error fetching data:", err);
-        process.exit(1);
-    });
+    // Ensure this runs only if executed directly
+    if (require.main === module) {
+        const month = process.argv[2]; // Get month from CLI argument
+        const year = process.argv[3];  // Get year from CLI argument
+
+        fetchAllData(month, year).then(() => {
+            console.log("✅ Finished fetching all data!");
+            process.exit(0);
+        }).catch((err) => {
+            console.error("❌ Error fetching data:", err);
+            process.exit(1);
+        });
+    }
 }
 
 
