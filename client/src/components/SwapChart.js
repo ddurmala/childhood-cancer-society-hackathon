@@ -8,6 +8,8 @@ const SwapChart = () => {
     const [year, setYear] = useState("2024");
 
     const handleFetchData = () => {
+        console.log("🔄 handleFetchData function executed!");
+
         if (!month || !year) {
             console.error("Month or year is not selected properly.");
             return;
@@ -19,14 +21,32 @@ const SwapChart = () => {
             .then(response => response.json())
             .then(data => {
                 console.log("📊 Fetched Data:", data);
+
                 if (!data || data.error || data.length === 0) {
                     console.error("⚠️ No data available.");
                     return;
-
                 }
-                setChartData(data);
+
+                // ✅ Transform API data into Plotly format
+                const formattedData = [
+                    {
+                        x: data.map(d => new Date(d.timestamp)),  // Convert timestamps to Date objects
+                        y: data.map(d => parseFloat(d.amount_out)),  // Use amount_out as Y-axis
+                        type: "scatter",
+                        mode: "lines+markers",
+                        marker: { color: "blue" }
+                    }
+                ];
+
+                setChartData({
+                    data: formattedData,
+                    layout: { title: `Swap Prices for ${month}/${year}` }
+                });
             })
-            .catch(error => console.error("Error fetching swap data:", error));
+            .catch(error => {
+                console.error("❌ Error fetching swap data:", error);
+                setChartData({ data: [], layout: {} });
+            });
     };
 
     useEffect(() => {

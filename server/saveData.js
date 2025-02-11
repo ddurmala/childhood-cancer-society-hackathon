@@ -1,26 +1,41 @@
 require("dotenv").config();
-
 const db = require("./db");
 
-async function saveTrade(project, amount_in, amount_out, amount_usd, token_in, token_out, gas_used, timestamp) {
+const saveTrade = async (trade) => {
     try {
-        if (!token_out) {
-            console.warn(`⚠️ Missing token_out for trade at ${timestamp}, setting default to 'UNKNOWN'`);
-            token_out = "UNKNOWN"; // Default value to prevent NULL errors
+        console.log("🔍 Raw trade timestamp:", trade.timestamp);
+
+        if (!trade.timestamp || trade.timestamp === "undefined") {
+            console.warn("🚨 Warning: Timestamp missing! Using default date.");
+            trade.timestamp = new Date().toISOString().split("T")[0]; // Use today's date
         }
 
-        await db.query(
-            `INSERT INTO "dex.trades" (exchange, amount_in, amount_out, amount_usd, token_in, token_out, gas_used, timestamp)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8) 
-     ON CONFLICT DO NOTHING`,
-            [project, amount_in, amount_out, amount_usd, token_in, token_out, gas_used, timestamp]
-        );
+
+        const formattedTimestamp = new Date(trade.timestamp).toISOString();
+        console.log("✅ Formatted timestamp:", formattedTimestamp);
 
 
-        console.log(`✅ Trade saved: ${exchange} at ${timestamp}`);
-    } catch (err) {
-        console.error("❌ Error inserting trade:", err);
+        if (isNaN(formattedTimestamp.getTime())) {
+            console.error("Invalid timestamp:", trade.timestamp);
+            return;
+        }
+
+        const pgDate = formattedTimestamp.split("T")[0]; // Extracts only YYYY-MM-DD
+
+        const query = `
+    INSERT INTO public."dex.trades" (amount_in, amount_out, amount_usd, timestamp, token_sold_symbol, token_bought_symbol)
+    VALUES ($1, $2, $3, $4, $5, $6)
+`;
+
+        const values = [trade.amount_in, trade.amount_out, trade.amount_usd, pgDate, trade.token_in, trade.token_out];
+
+
+        await db.query(query, values);
+
+        console.log("✅ Trade saved successfully:", trade);
+    } catch (error) {
+        console.error("❌ Error inserting trade:", error);
     }
-}
+};
 
 module.exports = { saveTrade };
