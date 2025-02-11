@@ -2,7 +2,7 @@ require("dotenv").config();
 
 const db = require("./db");
 
-async function saveTrade(exchange, amount_in, amount_out, token_in, token_out, gas_used, timestamp) {
+async function saveTrade(project, amount_in, amount_out, amount_usd, token_in, token_out, gas_used, timestamp) {
     try {
         if (!token_out) {
             console.warn(`⚠️ Missing token_out for trade at ${timestamp}, setting default to 'UNKNOWN'`);
@@ -10,11 +10,12 @@ async function saveTrade(exchange, amount_in, amount_out, token_in, token_out, g
         }
 
         await db.query(
-            `INSERT INTO swaps (exchange, amount_in, amount_out, token_in, token_out, gas_used, timestamp) 
-             VALUES ($1, $2, $3, $4, $5, $6, $7) 
-             ON CONFLICT DO NOTHING`,
-            [exchange, amount_in, amount_out, token_in, token_out, gas_used, timestamp]
+            `INSERT INTO "dex.trades" (exchange, amount_in, amount_out, amount_usd, token_in, token_out, gas_used, timestamp)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8) 
+     ON CONFLICT DO NOTHING`,
+            [project, amount_in, amount_out, amount_usd, token_in, token_out, gas_used, timestamp]
         );
+
 
         console.log(`✅ Trade saved: ${exchange} at ${timestamp}`);
     } catch (err) {
