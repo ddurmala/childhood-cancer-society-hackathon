@@ -1,113 +1,56 @@
 require("dotenv").config();
-
-const fs = require("fs");
-const csvParser = require("csv-parser");
+const fetch = (...args) => import('node-fetch').then(({ default: fetch }) => fetch(...args));
 const db = require("./db");
 
-const filePath = "../data/ETHUSDT-trades-2024-01.csv"; // ✅ Ensure the correct file path
+const DUNE_API_KEY = process.env.DUNE_API_KEY;
+const DUNE_QUERY_URL = `https://api.dune.com/api/v1/query/4709743/results`; // ✅ Use your query ID
 
 async function fetchBinanceTrades() {
     try {
-        console.log("🔄 STARTING Binance trades fetch...");
+        console.log("🔄 Fetching Binance trades from Dune...");
 
-        if (!fs.existsSync(filePath)) {
-            console.error("❌ CSV file not found at:", filePath);
+        const response = await fetch(DUNE_QUERY_URL, {
+            headers: { "X-Dune-API-Key": DUNE_API_KEY },
+        });
+
+        if (!response.ok) {
+            throw new Error(`❌ Failed to fetch data: ${response.statusText}`);
+        }
+
+        const data = await response.json();
+        const trades = data.result.rows;
+
+        if (!trades || trades.length === 0) {
+            console.warn("⚠️ No Binance trades found.");
             return;
         }
 
         let rowCount = 0;
-        const maxRows = 100; // ✅ Change this if needed to process more trades
-        let batch = [];
 
-        const stream = fs.createReadStream(filePath)
-            .pipe(csvParser({ headers: ["trade_id", "price", "qty", "quote_qty", "time", "is_buyer_maker", "ignore"], skipLines: 1 }));
+        for (let trade of trades) {
+            rowCount++;
 
-        return new Promise((resolve, reject) => {
-            stream.on("data", async (row) => {
-                if (rowCount >= maxRows) {
-                    stream.destroy();  // ✅ Stop streaming early if needed
-                    return;
-                }
+            const timestamp = trade.timestamp.split(" ")[0]; // ✅ Extract YYYY-MM-DD
+            const amountIn = parseFloat(trade.amount_in); // ✅ Trade size
+            const amountOut = parseFloat(trade.amount_out); // ✅ Quote price
 
-                rowCount++;
-                console.log(`🔍 Row ${rowCount}:`, row);
-
-                const timestamp = new Date(Number(row.time)); // ✅ Convert timestamp from ms
-                const amountIn = parseFloat(row.qty); // ✅ Trade size
-                const amountOut = parseFloat(row.quote_qty); // ✅ Realized price
-
-                // ✅ **Check if trade already exists**
-                const exists = await tradeExists(timestamp, amountIn, amountOut);
-                if (exists) {
-                    console.log(`⚠️ Trade at ${timestamp} already exists. Skipping.`);
-                    return; // **SKIP INSERTION IF TRADE EXISTS**
-                }
-
-                batch.push([
-                    "Binance",
-                    amountIn,
-                    amountOut,
-                    "WETH",
-                    "USDT",
-                    timestamp
-                ]);
-
-                if (batch.length >= 5) {
-                    await insertBatch(batch);
-                    batch = [];
-                }
+            console.log(`🔍 Processing trade ${rowCount}:`, {
+                timestamp, amountIn, amountOut
             });
 
-            stream.on("end", async () => {
-                if (batch.length > 0) await insertBatch(batch);
-                console.log("✅ File processing complete. EXITING.");
-                resolve();
-            });
+            // ✅ Insert into swaps table
+            await db.query(
+                `INSERT INTO swaps (exchange, amount_in, amount_out, token_in, token_out, timestamp)
+                 VALUES ($1, $2, $3, $4, $5, $6)
+                 ON CONFLICT DO NOTHING`,
+                ["Binance", amountIn, amountOut, "WETH", "USDT", timestamp]
+            );
+        }
 
-            stream.on("error", (err) => {
-                console.error("❌ Stream error:", err);
-                reject(err);
-            });
-        });
-
+        console.log(`✅ Successfully inserted ${rowCount} Binance trades.`);
     } catch (error) {
         console.error("❌ Error fetching Binance trades:", error);
     }
 }
 
-// ✅ **Function to Check if Trade Exists in Database**
-async function tradeExists(timestamp, amountIn, amountOut) {
-    try {
-        const result = await db.query(
-            `SELECT 1 FROM swaps WHERE timestamp = $1 AND amount_in = $2 AND amount_out = $3 LIMIT 1`,
-            [timestamp, amountIn, amountOut]
-        );
-        return result.rows.length > 0;
-    } catch (error) {
-        console.error("❌ Error checking if trade exists:", error);
-        return false;
-    }
-}
-
-// ✅ **Batch Insert Function**
-async function insertBatch(batch) {
-    try {
-        const values = batch.flat();
-        const placeholders = batch.map((_, i) =>
-            `($${i * 6 + 1}, $${i * 6 + 2}, $${i * 6 + 3}, $${i * 6 + 4}, $${i * 6 + 5}, $${i * 6 + 6})`
-        ).join(", ");
-
-        await db.query(
-            `INSERT INTO swaps (exchange, amount_in, amount_out, token_in, token_out, timestamp)
-             VALUES ${placeholders}
-             ON CONFLICT DO NOTHING`,
-            values
-        );
-
-        console.log(`✅ Inserted ${batch.length} Binance trades into database.`);
-    } catch (error) {
-        console.error("❌ Error inserting batch into DB:", error);
-    }
-}
-
-module.exports = { fetchBinanceTrades };
+fetchBinanceTrades();

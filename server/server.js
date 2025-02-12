@@ -35,13 +35,13 @@ app.get("/swap-prices", async (req, res) => {
     token_sold_amount AS amount_in,
     token_bought_amount AS amount_out,
     token_sold_symbol AS token_in,
-    token_bought_symbol AS token_out,
-    amount_usd
-FROM dex.trades
+    token_bought_symbol AS token_out
+FROM "dex.trades"
 WHERE block_time BETWEEN TIMESTAMP '2024-01-01' AND TIMESTAMP '2024-01-31'
 AND token_sold_symbol = 'WETH'
 AND token_bought_symbol = 'USDT'
-LIMIT 10000
+ORDER BY block_time
+LIMIT 10
 `
         );
 
@@ -57,6 +57,41 @@ LIMIT 10000
         res.status(500).json({ error: "Failed to fetch swap prices" });
     }
 });
+
+app.get("/trade-analysis", async (req, res) => {
+    console.log("📊 Fetching trade analysis data...");
+
+    try {
+        const query = `
+            (SELECT timestamp, exchange, amount_out AS trade_size, amount_out / amount_in AS avg_cost
+ FROM swaps
+ WHERE token_in = 'WETH'
+ AND token_out = 'USDT'
+ AND exchange = 'Uniswap V2'
+ AND timestamp BETWEEN TIMESTAMP '2024-01-01' AND TIMESTAMP '2024-01-31'
+ LIMIT 5)
+UNION ALL
+(SELECT timestamp, exchange, amount_out AS trade_size, amount_out / amount_in AS avg_cost
+ FROM swaps
+ WHERE token_in = 'WETH'
+ AND token_out = 'USDT'
+ AND exchange = 'Binance'
+ AND timestamp BETWEEN TIMESTAMP '2024-01-01' AND TIMESTAMP '2024-01-31'
+ LIMIT 5)
+ORDER BY timestamp;
+
+        `;
+
+        const { rows } = await db.query(query);
+
+        console.log("✅ Trade analysis data fetched.");
+        res.json(rows);
+    } catch (error) {
+        console.error("❌ Error fetching trade analysis data:", error);
+        res.status(500).json({ error: "Failed to fetch trade analysis data" });
+    }
+});
+
 
 app.listen(PORT, () => {
     console.log(`🚀 Server is running on http://localhost:${PORT}`);

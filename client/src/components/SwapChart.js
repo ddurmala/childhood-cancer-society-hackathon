@@ -1,94 +1,140 @@
 import React, { useEffect, useState } from "react";
 import Plot from "react-plotly.js";
-import { Form, Button } from "react-bootstrap"; // ✅ Using Bootstrap for styling
+import { Button } from "react-bootstrap";
+import html2canvas from "html2canvas";
+
+import { fetchTradeAnalysis } from "../api/swapApi";
 
 const SwapChart = () => {
     const [chartData, setChartData] = useState({ data: [], layout: {} });
-    const [month, setMonth] = useState("1");
-    const [year, setYear] = useState("2024");
 
-    const handleFetchData = () => {
-        console.log("🔄 handleFetchData function executed!");
+    const handleFetchData = async () => {
+        console.log("🔄 Fetching trade analysis data...");
 
-        if (!month || !year) {
-            console.error("Month or year is not selected properly.");
-            return;
-        }
+        try {
+            const data = await fetchTradeAnalysis();
 
-        console.log(`🔍 Fetching data for ${month}/${year}`);
+            if (!data || data.length === 0) {
+                console.error("⚠️ No trade analysis data available.");
+                setChartData({ data: [], layout: {} });
+                return;
+            }
 
-        fetch(`http://localhost:3001/swap-prices?month=${month}&year=${year}`)
-            .then(response => response.json())
-            .then(data => {
-                console.log("📊 Fetched Data:", data);
+            console.log("📊 Trade Analysis Data:", data);
 
-                if (!data || data.error || data.length === 0) {
-                    console.error("⚠️ No data available.");
-                    return;
+            //nGroup data by exchange (Uniswap V2, Binance, etc.)
+            const groupedData = {};
+            data.forEach(trade => {
+                const { exchange, trade_size, avg_cost } = trade;
+
+                if (!groupedData[exchange]) {
+                    groupedData[exchange] = { x: [], y: [], name: exchange };
                 }
 
-                // ✅ Transform API data into Plotly format
-                const formattedData = [
-                    {
-                        x: data.map(d => new Date(d.timestamp)),  // Convert timestamps to Date objects
-                        y: data.map(d => parseFloat(d.amount_out)),  // Use amount_out as Y-axis
-                        type: "scatter",
-                        mode: "lines+markers",
-                        marker: { color: "blue" }
-                    }
-                ];
-
-                setChartData({
-                    data: formattedData,
-                    layout: { title: `Swap Prices for ${month}/${year}` }
-                });
-            })
-            .catch(error => {
-                console.error("❌ Error fetching swap data:", error);
-                setChartData({ data: [], layout: {} });
+                groupedData[exchange].x.push(parseFloat(trade_size));
+                groupedData[exchange].y.push(parseFloat(avg_cost));
             });
+
+            Object.keys(groupedData).forEach(exchange => {
+                const combined = groupedData[exchange].x.map((size, i) => ({
+                    size,
+                    cost: groupedData[exchange].y[i],
+                }));
+
+                combined.sort((a, b) => a.size - b.size);
+
+                groupedData[exchange].x = combined.map(d => d.size);
+                groupedData[exchange].y = combined.map(d => d.cost);
+            });
+
+            // Convert grouped data to Plotly format
+            const formattedData = Object.values(groupedData).map(dataset => ({
+                ...dataset,
+                type: "scatter",
+                mode: "lines+markers"
+            }));
+
+            setChartData({
+                data: formattedData,
+                layout: {
+                    title: {
+                        text: "Trade Size vs. Average Cost (January 2024)",
+                        font: { size: 20 }
+                    },
+                    xaxis: {
+                        title: {
+                            text: "Trade Size (Amount of USDT Spent)",
+                            font: { size: 16 } // Ensure label visibility
+                        },
+                        tickformat: ".2f",
+                        showgrid: true,
+                        zeroline: true
+                    },
+                    yaxis: {
+                        title: {
+                            text: "Average Cost (USDT per WETH)",
+                            font: { size: 16 } // Ensure label visibility
+                        },
+                        tickformat: ".4f",
+                        showgrid: true,
+                        zeroline: true
+                    },
+                    margin: {
+                        l: 160,  // Increase left margin for Y-axis label
+                        r: 40,
+                        t: 50,
+                        b: 50
+                    }
+                }
+            });
+
+        } catch (error) {
+            console.error("Error fetching trade analysis data:", error);
+            setChartData({ data: [], layout: {} });
+        }
     };
 
-    useEffect(() => {
-        if (month && year) {
-            handleFetchData();
+    // Download Chart as PNG
+    const handleDownloadChart = () => {
+        const chartElement = document.querySelector(".js-plotly-plot");
+
+        if (chartElement) {
+            html2canvas(chartElement).then((canvas) => {
+                const link = document.createElement("a");
+                link.href = canvas.toDataURL("image/png");
+                link.download = "trade-analysis-chart.png";
+                link.click();
+            }).catch((err) => console.error("❌ Error generating chart image:", err));
+        } else {
+            console.error("❌ Chart element not found!");
         }
-    }, [month, year]); // Only fetch when month & year are set
+    };
+
+
+    useEffect(() => {
+        handleFetchData();
+    }, []);
 
     return (
         <div>
-            <h2>Uniswap Swap Data</h2>
-            <h5>{month && year ? `Data from ${month}/${year}` : "Select a month and year"}</h5>
+            <h2>Trade Size vs. Average Cost</h2>
+            <h5>Data from January 2024</h5>
 
-            {/* Month & Year Selection */}
-            <Form>
-                <Form.Group controlId="monthSelect">
-                    <Form.Label>Select Month:</Form.Label>
-                    <Form.Select value={month} onChange={e => setMonth(e.target.value)}>
-                        <option value="">-- Select Month --</option>
-                        {Array.from({ length: 12 }, (_, i) => (
-                            <option key={i + 1} value={i + 1}>{new Date(0, i).toLocaleString("default", { month: "long" })}</option>
-                        ))}
-                    </Form.Select>
-                </Form.Group>
-
-                <Form.Group controlId="yearSelect">
-                    <Form.Label>Select Year:</Form.Label>
-                    <Form.Select value={year} onChange={e => setYear(e.target.value)}>
-                        <option value="">-- Select Year --</option>
-                        {["2023", "2024"].map(y => <option key={y} value={y}>{y}</option>)}
-                    </Form.Select>
-                </Form.Group>
-
-                <Button variant="primary" onClick={handleFetchData} className="mt-2">Fetch Data</Button>
-            </Form>
+            <button onClick={handleFetchData} className="btn btn-primary mt-2">
+                Fetch Data
+            </button>
 
             {/* Display Chart */}
             {chartData.data.length > 0 ? (
                 <Plot data={chartData.data} layout={chartData.layout} />
             ) : (
-                <p>No data available. Please select a valid month and year.</p>
+                <p>No data available.</p>
             )}
+
+            <Button variant="success" onClick={handleDownloadChart} className="mt-3">
+                Download Chart as PNG
+            </Button>
+
         </div>
     );
 };

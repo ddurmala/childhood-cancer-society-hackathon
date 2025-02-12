@@ -4,7 +4,7 @@ const { saveTrade } = require("./saveData");
 const fetch = (...args) => import('node-fetch').then(({ default: fetch }) => fetch(...args));
 
 const DUNE_API_KEY = process.env.DUNE_API_KEY;
-const CUSTOM_ENDPOINT_URL = "https://api.dune.com/api/v1/endpoints/ddurmala/uniswapv2/results";
+const CUSTOM_ENDPOINT_URL = "https://api.dune.com/api/v1/endpoints/ddurmala_team/uniswapv2/results";
 
 console.log("🔍 DUNE_API_KEY:", process.env.DUNE_API_KEY);
 
@@ -12,7 +12,7 @@ async function fetchJanuary2024Data() {
     console.log("🔄 Fetching January 2024 swaps from Dune Custom Endpoint...");
 
     try {
-        const response = await fetch(`${CUSTOM_ENDPOINT_URL}?limit=100000`, {
+        const response = await fetch(`${CUSTOM_ENDPOINT_URL}?limit=5`, {
             headers: { "X-Dune-API-Key": DUNE_API_KEY }
         });
 
@@ -31,18 +31,20 @@ async function fetchJanuary2024Data() {
         for (let swap of swaps) {
             console.log("🛠 DEBUG: Swap Data ->", swap);
 
-            const tokenOut = swap.token_out || 'UNKNOWN';
+            const dateOnly = swap.timestamp ? swap.timestamp.split(" ")[0] : "1970-01-01";
 
-            await saveTrade(
-                "Uniswap V2",
-                parseFloat(swap.amount_in),
-                parseFloat(swap.amount_out),
-                swap.token_in,
-                swap.token_out,
-                swap.gas_used ? parseFloat(swap.gas_used) : 0,
-                swap.block_time,
-                parseFloat(swap.amount_usd)
-            );
+            const amountIn = parseFloat(swap.amount_in) || 0;
+            const amountOut = parseFloat(swap.amount_out) || 0;
+            const amountUSD = parseFloat(swap.amount_usd) || 0;
+
+            await saveTrade({
+                amount_in: amountIn,
+                amount_out: amountOut,
+                amount_usd: amountUSD,
+                timestamp: dateOnly,
+                token_sold_symbol: swap.token_in,
+                token_bought_symbol: swap.token_out
+            });
         }
 
         console.log(`✅ Successfully fetched & saved ${swaps.length} Uniswap V2 swaps for January 2024.`);
