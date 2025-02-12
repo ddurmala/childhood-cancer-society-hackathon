@@ -1,17 +1,18 @@
 require("dotenv").config();
-const { fetchBinanceTrades } = require("./fetchBinanceTrades");
 const { saveTrade } = require("./saveData");
 
 const fetch = (...args) => import('node-fetch').then(({ default: fetch }) => fetch(...args));
 
 const DUNE_API_KEY = process.env.DUNE_API_KEY;
-const CUSTOM_ENDPOINT_URL = "https://api.dune.com/api/v1/endpoints/ddurmala/uniswapv2/results";
+const CUSTOM_ENDPOINT_URL = "https://api.dune.com/api/v1/endpoints/ddurmala_team/uniswapv2/results";
 
-async function fetchUniswapV2Swaps() {
-    console.log("🔄 Fetching Uniswap V2 swaps from Dune Custom Endpoint...");
+console.log("🔍 DUNE_API_KEY:", process.env.DUNE_API_KEY);
+
+async function fetchJanuary2024Data() {
+    console.log("🔄 Fetching January 2024 swaps from Dune Custom Endpoint...");
 
     try {
-        const response = await fetch(`${CUSTOM_ENDPOINT_URL}?limit=100`, {
+        const response = await fetch(`${CUSTOM_ENDPOINT_URL}?limit=5`, {
             headers: { "X-Dune-API-Key": DUNE_API_KEY }
         });
 
@@ -23,42 +24,38 @@ async function fetchUniswapV2Swaps() {
         const swaps = data.result.rows;
 
         if (!swaps || swaps.length === 0) {
-            console.warn("⚠️ No swaps found for Uniswap V2.");
+            console.warn("⚠️ No swaps found for January 2024.");
             return;
         }
 
         for (let swap of swaps) {
             console.log("🛠 DEBUG: Swap Data ->", swap);
 
-            await saveTrade(
-                "Uniswap V2",
-                parseFloat(swap.amount_in),
-                parseFloat(swap.amount_out),
-                swap.token_in,
-                swap.token_out,
-                swap.gas_used ? parseFloat(swap.gas_used) : 0,
-                swap.block_time
-            );
+            const dateOnly = swap.timestamp ? swap.timestamp.split(" ")[0] : "1970-01-01";
+
+            const amountIn = parseFloat(swap.amount_in) || 0;
+            const amountOut = parseFloat(swap.amount_out) || 0;
+            const amountUSD = parseFloat(swap.amount_usd) || 0;
+
+            await saveTrade({
+                amount_in: amountIn,
+                amount_out: amountOut,
+                amount_usd: amountUSD,
+                timestamp: dateOnly,
+                token_sold_symbol: swap.token_in,
+                token_bought_symbol: swap.token_out
+            });
         }
 
-        console.log(`✅ Successfully fetched & saved ${swaps.length} Uniswap V2 swaps.`);
+        console.log(`✅ Successfully fetched & saved ${swaps.length} Uniswap V2 swaps for January 2024.`);
     } catch (error) {
         console.error("❌ Error fetching Uniswap V2 swaps:", error);
     }
 }
 
-async function fetchAllData() {
-    console.log("🚀 Fetching all swap data...");
-
-    console.log("🚀 Fetching both Uniswap V2 and Binance trades...");
-    await fetchUniswapV2Swaps();
-    await fetchBinanceTrades();
-    console.log("✅ All trade data fetched.");
-}
-
 if (require.main === module) {
-    fetchAllData().then(() => {
-        console.log("✅ Finished fetching all data!");
+    fetchJanuary2024Data().then(() => {
+        console.log("✅ Finished fetching January 2024 data!");
         process.exit(0);
     }).catch((err) => {
         console.error("❌ Error fetching data:", err);
@@ -66,5 +63,4 @@ if (require.main === module) {
     });
 }
 
-
-module.exports = { fetchAllData, fetchUniswapV2Swaps };
+module.exports = { fetchJanuary2024Data };

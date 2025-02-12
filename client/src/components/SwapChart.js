@@ -1,81 +1,140 @@
 import React, { useEffect, useState } from "react";
 import Plot from "react-plotly.js";
+import { Button } from "react-bootstrap";
+import html2canvas from "html2canvas";
+
+import { fetchTradeAnalysis } from "../api/swapApi";
 
 const SwapChart = () => {
-    const [chartData, setChartData] = useState({ uniswap: [], binance: [] });
+    const [chartData, setChartData] = useState({ data: [], layout: {} });
 
-    useEffect(() => {
-        fetch("http://localhost:3001/swap-prices")
-            .then((response) => response.json())
-            .then((data) => {
-                const uniswapData = data
-                    .filter((swap) => swap.exchange === "Uniswap V2" && (swap.trade_size < 14700 || swap.trade_size > 27000))
-                    .map((swap) => ({
-                        x: swap.trade_size,
-                        y: swap.price,
-                    }));
+    const handleFetchData = async () => {
+        console.log("🔄 Fetching trade analysis data...");
 
-                const binanceData = data
-                    .filter((swap) => swap.exchange === "Binance" && (swap.trade_size < 14700 || swap.trade_size > 27000))
-                    .map((swap) => ({
-                        x: swap.trade_size,
-                        y: swap.price,
-                    }));
+        try {
+            const data = await fetchTradeAnalysis();
 
-                setChartData({ uniswap: uniswapData, binance: binanceData });
-            })
-            .catch((error) => console.error("Error fetching swap data:", error));
-    }, []);
+            if (!data || data.length === 0) {
+                console.error("⚠️ No trade analysis data available.");
+                setChartData({ data: [], layout: {} });
+                return;
+            }
 
-    if (!chartData.uniswap.length || !chartData.binance.length) return <p>Loading chart...</p>;
+            console.log("📊 Trade Analysis Data:", data);
 
-    return (
-        <div style={{ width: "100%", textAlign: "center", padding: "20px" }}>
-            <h2>Uniswap Swap Data</h2>
-            <p style={{ fontSize: "16px", fontWeight: "bold" }}>Trade Size vs. Average Cost</p>
-            <p style={{ fontSize: "14px", color: "#777" }}>Data from January 2024</p>
+            //nGroup data by exchange (Uniswap V2, Binance, etc.)
+            const groupedData = {};
+            data.forEach(trade => {
+                const { exchange, trade_size, avg_cost } = trade;
 
-            <Plot
-                data={[
-                    {
-                        x: chartData.uniswap.map((d) => d.x),
-                        y: chartData.uniswap.map((d) => d.y),
-                        mode: "markers",
-                        type: "scatter",
-                        name: "Uniswap V2",
-                        marker: { color: "blue", size: 6 },
+                if (!groupedData[exchange]) {
+                    groupedData[exchange] = { x: [], y: [], name: exchange };
+                }
+
+                groupedData[exchange].x.push(parseFloat(trade_size));
+                groupedData[exchange].y.push(parseFloat(avg_cost));
+            });
+
+            Object.keys(groupedData).forEach(exchange => {
+                const combined = groupedData[exchange].x.map((size, i) => ({
+                    size,
+                    cost: groupedData[exchange].y[i],
+                }));
+
+                combined.sort((a, b) => a.size - b.size);
+
+                groupedData[exchange].x = combined.map(d => d.size);
+                groupedData[exchange].y = combined.map(d => d.cost);
+            });
+
+            // Convert grouped data to Plotly format
+            const formattedData = Object.values(groupedData).map(dataset => ({
+                ...dataset,
+                type: "scatter",
+                mode: "lines+markers"
+            }));
+
+            setChartData({
+                data: formattedData,
+                layout: {
+                    title: {
+                        text: "Trade Size vs. Average Cost (January 2024)",
+                        font: { size: 20 }
                     },
-                    {
-                        x: chartData.binance.map((d) => d.x),
-                        y: chartData.binance.map((d) => d.y),
-                        mode: "markers",
-                        type: "scatter",
-                        name: "Binance",
-                        marker: { color: "green", size: 6 },
-                    },
-                ]}
-                layout={{
-                    title: "Trade Size vs. Average Cost",
                     xaxis: {
-                        title: { text: "Trade Size in USD", font: { size: 16, color: "#333" } }, // ✅ X-Axis Label
-                        type: "log",
-                        tickvals: [50, 100, 200, 300, 500, 1000, 2000, 5000, 10000],
-                        ticktext: ["50", "100", "200", "300", "500", "1k", "2k", "5k", "10k"],
+                        title: {
+                            text: "Trade Size (Amount of USDT Spent)",
+                            font: { size: 16 } // Ensure label visibility
+                        },
+                        tickformat: ".2f",
                         showgrid: true,
+                        zeroline: true
                     },
                     yaxis: {
-                        title: { text: "Average Cost (USDT per WETH)", font: { size: 16, color: "#333" } }, // ✅ Y-Axis Label
-                        tickformat: "$,.2f",
+                        title: {
+                            text: "Average Cost (USDT per WETH)",
+                            font: { size: 16 } // Ensure label visibility
+                        },
+                        tickformat: ".4f",
                         showgrid: true,
-                        zeroline: false,
+                        zeroline: true
                     },
-                    legend: { x: 0, y: -0.2, orientation: "h" },
-                    margin: { t: 50, b: 80, l: 80, r: 20 },
-                    plot_bgcolor: "white",
-                }}
-                config={{ responsive: true, displayModeBar: false }}
-                style={{ width: "100%", height: "500px" }}
-            />
+                    margin: {
+                        l: 160,  // Increase left margin for Y-axis label
+                        r: 40,
+                        t: 50,
+                        b: 50
+                    }
+                }
+            });
+
+        } catch (error) {
+            console.error("Error fetching trade analysis data:", error);
+            setChartData({ data: [], layout: {} });
+        }
+    };
+
+    // Download Chart as PNG
+    const handleDownloadChart = () => {
+        const chartElement = document.querySelector(".js-plotly-plot");
+
+        if (chartElement) {
+            html2canvas(chartElement).then((canvas) => {
+                const link = document.createElement("a");
+                link.href = canvas.toDataURL("image/png");
+                link.download = "trade-analysis-chart.png";
+                link.click();
+            }).catch((err) => console.error("❌ Error generating chart image:", err));
+        } else {
+            console.error("❌ Chart element not found!");
+        }
+    };
+
+
+    useEffect(() => {
+        handleFetchData();
+    }, []);
+
+    return (
+        <div>
+            <h2>Trade Size vs. Average Cost</h2>
+            <h5>Data from January 2024</h5>
+
+            <button onClick={handleFetchData} className="btn btn-primary mt-2">
+                Fetch Data
+            </button>
+
+            {/* Display Chart */}
+            {chartData.data.length > 0 ? (
+                <Plot data={chartData.data} layout={chartData.layout} />
+            ) : (
+                <p>No data available.</p>
+            )}
+
+            <Button variant="success" onClick={handleDownloadChart} className="mt-3">
+                Download Chart as PNG
+            </Button>
+
         </div>
     );
 };
