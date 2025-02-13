@@ -1,70 +1,124 @@
-# Getting Started with Create React App
+# Uniswap Swap Analysis
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+## Overview
+This project collects and analyzes swap data from **UniSwap V2, UniSwap V3**, and **Binance mid-prices** to compare trading costs. It saves all swaps for the **WETH/USDT** market within **January 2024** into a database and visualizes trade size vs. average cost per exchange.
 
-## Available Scripts
+## Features
+- **Data Collection**: Fetches swap data from **Dune API** for UniSwap V2 & V3.
+- **Database Storage**: Saves fetched swaps into a **PostgreSQL** database.
+- **Price Comparison**: Matches swap prices with Binance mid-prices.
+- **Visualization**: Generates a **line graph** of trade size vs. average cost per exchange.
+- **Image Generation**: Creates a PNG file of the graph for submission.
 
-In the project directory, you can run:
+## Installation & Setup
 
-### `npm start`
+### 1️⃣ Prerequisites
+Ensure you have the following installed:
+- **Node.js** & **npm** (for backend and frontend)
+- **PostgreSQL** (for database storage)
+- **DBeaver** (optional, for database visualization)
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+### 2️⃣ Clone the Repository
+```sh
+git clone https://github.com/ddurmala/uniswap-swap-analysis.git
+cd uniswap-swap-analysis
+```
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+### 3️⃣ Setup the Backend
+#### Install dependencies:
+```sh
+cd server
+npm install
+```
+#### Configure Environment Variables:
+Create a `.env` file in the `server` directory:
+```sh
+DUNE_API_KEY=your_dune_api_key
+PG_URI=your_postgres_connection_string
+PORT=3001
+```
 
-### `npm test`
+#### Start the Backend:
+```sh
+npm start
+```
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+### 4️⃣ Setup the Frontend
+#### Install dependencies:
+```sh
+cd client
+npm install
+```
+#### Start the Frontend:
+```sh
+npm start
+```
+Then open **http://localhost:3000** in your browser.
 
-### `npm run build`
+## How It Works
+### **Step 1: Fetching Swap Data (Backend)**
+📌 Implemented in [`fetchData.js`](server/fetchData.js)
+- Calls **Dune API** to fetch **WETH/USDT** swaps for January 2024.
+- Saves swaps into the **PostgreSQL** database.
+- Stores **exchange, amount_in, amount_out, token_in, token_out, timestamp**.
+- **Files**: `fetchData.js`, `saveData.js`
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+### **Step 2: Storing Data in PostgreSQL**
+📌 Implemented in [`saveData.js`](server/saveData.js)
+- Inserts swaps into the **`swaps`** table.
+- Validates and formats timestamps.
+- **Tables**: `swaps`, `price_analysis`
+- **Files**: `saveData.js`, `db.js`
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+### **Step 3: Fetching Binance Prices & Analysis**
+📌 Implemented in [`server.js`](server/server.js)
+- Queries database for **Binance mid-prices**.
+- Compares with **Uniswap trade prices**.
+- Stores **price differences**.
+- **Files**: `server.js`, `db.js`
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+### **Step 4: Visualizing Data (Frontend)**
+📌 Implemented in [`SwapChart.js`](client/src/components/SwapChart.js)
+- Fetches trade analysis data from the backend (`/trade-analysis`).
+- Plots **Trade Size (x-axis) vs. Average Cost (y-axis)**.
+- Generates a **line graph** with one line per exchange.
+- Saves the chart as a PNG file.
+- **Libraries Used**: `react-plotly.js`, `html2canvas`
 
-### `npm run eject`
+### **Step 5: Generating and Saving the Graph**
+📌 Implemented in [`SwapChart.js`](client/src/components/SwapChart.js)
+- Uses **Plotly.js** to create a **line chart**.
+- **Ensures x-axis is sorted** for proper visualization.
+- Allows downloading the chart as a PNG.
 
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
+## API Endpoints
+| Method | Endpoint            | Description                    |
+|--------|--------------------|--------------------------------|
+| `GET`  | `/fetch-all`       | Fetches & stores all swaps    |
+| `GET`  | `/swap-prices`     | Retrieves trade analysis data |
+| `GET`  | `/trade-analysis`  | Fetches and compares prices   |
 
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+## How to Run the Full Project
+```sh
+# Start PostgreSQL database
+pg_ctl -D /usr/local/var/postgres start  # Mac/Linux
+# or
+net start postgresql  # Windows
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
+# Start backend
+cd server
+npm start
 
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
+# Start frontend
+cd client
+npm start
+```
 
-## Learn More
+## Example Output
+Once everything is running, you will see a **line chart** comparing **Uniswap V2, Uniswap V3, and Binance prices** for **WETH/USDT** trades in January 2024.
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
-
-To learn React, check out the [React documentation](https://reactjs.org/).
-
-### Code Splitting
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
-
-### Analyzing the Bundle Size
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
-
-### Making a Progressive Web App
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
-
-### Advanced Configuration
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
-
-### Deployment
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
-
-### `npm run build` fails to minify
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+## Notes & Future Work
+- **Currently only supports WETH/USDT** (can be expanded to other pairs).
+- **Cowswap data is not implemented yet** (left out for scope reasons).
+- **Potential improvements**: UI enhancements, API error handling.
+- A repository branch was created to make data input **more dynamic**, including a UI form that allows users to select token pairs and time frames dynamically.

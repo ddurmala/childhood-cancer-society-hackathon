@@ -23,36 +23,45 @@ const SwapChart = () => {
             console.log("📊 Trade Analysis Data:", data);
 
             //nGroup data by exchange (Uniswap V2, Binance, etc.)
-            const groupedData = {};
+            const groupedData = {
+                "Uniswap V2": { x: [], y: [], name: "Uniswap V2" },
+                "Uniswap V3": { x: [], y: [], name: "Uniswap V3" },
+                "Binance": { x: [], y: [], name: "Binance" }
+            };
+
             data.forEach(trade => {
                 const { exchange, trade_size, avg_cost } = trade;
 
-                if (!groupedData[exchange]) {
-                    groupedData[exchange] = { x: [], y: [], name: exchange };
+                if (groupedData[exchange]) {
+                    groupedData[exchange].x.push(parseFloat(trade_size));
+                    groupedData[exchange].y.push(parseFloat(avg_cost));
                 }
-
-                groupedData[exchange].x.push(parseFloat(trade_size));
-                groupedData[exchange].y.push(parseFloat(avg_cost));
             });
 
-            Object.keys(groupedData).forEach(exchange => {
-                const combined = groupedData[exchange].x.map((size, i) => ({
-                    size,
-                    cost: groupedData[exchange].y[i],
-                }));
+            // Sort data points for each exchange so the line graph doesn't look messy
+            Object.values(groupedData).forEach(dataset => {
+                const sortedIndices = dataset.x.map((_, i) => i) // Create index array
+                    .sort((a, b) => dataset.x[a] - dataset.x[b]); // Sort indices by trade size
 
-                combined.sort((a, b) => a.size - b.size);
-
-                groupedData[exchange].x = combined.map(d => d.size);
-                groupedData[exchange].y = combined.map(d => d.cost);
+                dataset.x = sortedIndices.map(i => dataset.x[i]); // Reorder x values
+                dataset.y = sortedIndices.map(i => dataset.y[i]); // Reorder y values
             });
+
 
             // Convert grouped data to Plotly format
-            const formattedData = Object.values(groupedData).map(dataset => ({
+            const formattedData = [
+                groupedData["Uniswap V3"],
+                groupedData["Binance"],
+                groupedData["Uniswap V2"]
+
+            ].map(dataset => ({
                 ...dataset,
-                type: "scatter",
-                mode: "lines+markers"
+                type: "scatter",   // Use 'scatter' for line graph
+                mode: "lines+markers", // Connect points with lines, keep markers
+                line: { shape: "spline", width: 2 },  // Smooth lines instead of jagged edges
+                marker: { size: 6 }
             }));
+
 
             setChartData({
                 data: formattedData,

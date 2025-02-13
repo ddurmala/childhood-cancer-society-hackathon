@@ -5,41 +5,36 @@ const saveTrade = async (trade) => {
     try {
         console.log("🔍 Saving Trade ->", trade);
 
-        let formattedDate;
+        let formattedDate = trade.timestamp ? trade.timestamp.split(" ")[0] : new Date().toISOString().split("T")[0];
 
-        if (trade.timestamp) {
-            try {
-                formattedDate = trade.timestamp.split(" ")[0]; // Extract YYYY-MM-DD
-            } catch (error) {
-                console.warn("🚨 Warning: Invalid timestamp format, using default date.");
-                formattedDate = new Date().toISOString().split("T")[0]; // Fallback to today's date
-            }
-        } else {
-            console.warn("🚨 Warning: Timestamp missing! Using default date.");
-            formattedDate = new Date().toISOString().split("T")[0];
+        // ✅ Fix token symbols: ensure they are correctly saved
+        const tokenSoldSymbol = (trade.token_sold_symbol || "").trim().toUpperCase();
+        const tokenBoughtSymbol = (trade.token_bought_symbol || "").trim().toUpperCase();
+
+
+        if (!tokenSoldSymbol || !tokenBoughtSymbol) {
+            console.warn("🚨 Warning: Missing token symbols!", { tokenSoldSymbol, tokenBoughtSymbol });
         }
 
-        console.log("✅ Formatted date:", formattedDate);
-
-        // 🛑 No need for getTime() - formattedDate is already a string (YYYY-MM-DD)
+        console.log(`🔹 Saving with Tokens: ${tokenSoldSymbol} -> ${tokenBoughtSymbol}`);
 
         const query = `
-    INSERT INTO public.swaps (exchange, amount_in, amount_out, token_in, token_out, timestamp)
-    VALUES ($1, $2, $3, $4, $5, $6)
-`;
+            INSERT INTO public.swaps (exchange, amount_in, amount_out, token_in, token_out, timestamp)
+            VALUES ($1, $2, $3, $4, $5, $6)
+        `;
 
         const values = [
-            "Uniswap V2",  // Now correctly counted as parameter 1
+            trade.exchange || "Unknown Exchange",
             parseFloat(trade.amount_in) || 0,
             parseFloat(trade.amount_out) || 0,
-            trade.token_sold_symbol || 'UNKNOWN',
-            trade.token_bought_symbol || 'UNKNOWN',
-            trade.timestamp
+            tokenSoldSymbol || 'UNKNOWN',  // ✅ Ensure token names are correctly stored
+            tokenBoughtSymbol || 'UNKNOWN',
+            formattedDate
         ];
 
         await db.query(query, values);
 
-        console.log("✅ Trade saved successfully:", trade);
+        console.log("✅ Trade saved successfully:", { exchange: trade.exchange, tokenSoldSymbol, tokenBoughtSymbol, formattedDate });
     } catch (error) {
         console.error("❌ Error inserting trade:", error);
     }

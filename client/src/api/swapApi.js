@@ -1,11 +1,11 @@
 const API_URL = "http://localhost:3001";
 
 /**
- * Fetch swap data from the backend
+ * Fetch all swap data (Uniswap V2 & V3) from the backend
  */
 export const fetchSwaps = async () => {
     try {
-        const response = await fetch(`${API_URL}/uniswap-swaps`);
+        const response = await fetch(`${API_URL}/fetch-all`); // Updated to fetch all swaps
         if (!response.ok) throw new Error("Failed to fetch swaps");
 
         const data = await response.json();
@@ -25,6 +25,11 @@ export const fetchTradeAnalysis = async () => {
         if (!response.ok) throw new Error("Failed to fetch trade analysis");
 
         const data = await response.json();
+        console.log("📊 Trade Analysis API Response:", data);
+
+        const exchanges = [...new Set(data.map(trade => trade.exchange))];
+        console.log("✅ Exchanges in API Response:", exchanges);
+
         return data;
     } catch (error) {
         console.error("Error fetching trade analysis:", error);

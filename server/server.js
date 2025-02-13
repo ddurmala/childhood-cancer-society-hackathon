@@ -5,7 +5,7 @@ const express = require("express");
 const app = express();
 app.use(cors());
 
-const { fetchJanuary2024Data } = require("./fetchData");
+const { fetchUniswapV2, fetchUniswapV3 } = require("./fetchData");
 const db = require("./db");
 
 const PORT = process.env.PORT || 3001;
@@ -17,7 +17,8 @@ app.get("/", (req, res) => {
 app.get("/fetch-all", async (req, res) => {
     console.log("🔄 Received request to fetch Uniswap V2 trades for January 2024...");
     try {
-        await fetchJanuary2024Data();
+        await fetchUniswapV2();
+        await fetchUniswapV3();
         res.json({ message: "✅ Successfully fetched & saved Uniswap V2 swaps for January 2024!" });
     } catch (error) {
         console.error("❌ Error in API route:", error);
@@ -41,7 +42,7 @@ WHERE block_time BETWEEN TIMESTAMP '2024-01-01' AND TIMESTAMP '2024-01-31'
 AND token_sold_symbol = 'WETH'
 AND token_bought_symbol = 'USDT'
 ORDER BY block_time
-LIMIT 10
+LIMIT 100
 `
         );
 
@@ -63,13 +64,21 @@ app.get("/trade-analysis", async (req, res) => {
 
     try {
         const query = `
-            (SELECT timestamp, exchange, amount_out AS trade_size, amount_out / amount_in AS avg_cost
+(SELECT timestamp, exchange, amount_out AS trade_size, amount_out / amount_in AS avg_cost
  FROM swaps
  WHERE token_in = 'WETH'
  AND token_out = 'USDT'
  AND exchange = 'Uniswap V2'
  AND timestamp BETWEEN TIMESTAMP '2024-01-01' AND TIMESTAMP '2024-01-31'
- LIMIT 5)
+ LIMIT 100)
+UNION ALL
+(SELECT timestamp, exchange, amount_out AS trade_size, amount_out / amount_in AS avg_cost
+ FROM swaps
+ WHERE token_in = 'WETH'
+ AND token_out = 'USDT'
+ AND exchange = 'Uniswap V3'
+ AND timestamp BETWEEN TIMESTAMP '2024-01-01' AND TIMESTAMP '2024-01-31'
+ LIMIT 100)
 UNION ALL
 (SELECT timestamp, exchange, amount_out AS trade_size, amount_out / amount_in AS avg_cost
  FROM swaps
@@ -77,7 +86,7 @@ UNION ALL
  AND token_out = 'USDT'
  AND exchange = 'Binance'
  AND timestamp BETWEEN TIMESTAMP '2024-01-01' AND TIMESTAMP '2024-01-31'
- LIMIT 5)
+ LIMIT 100)
 ORDER BY timestamp;
 
         `;
