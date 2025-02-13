@@ -8,7 +8,7 @@ app.use(cors());
 const { fetchUniswapV2, fetchUniswapV3 } = require("./server/fetchData");
 const db = require("./server/db");
 
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || 10000;
 
 app.get("/", (req, res) => {
     res.send("Welcome to the Swap Data Fetcher API");
