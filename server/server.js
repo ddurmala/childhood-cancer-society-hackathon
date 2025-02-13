@@ -37,7 +37,7 @@ app.get("/swap-prices", async (req, res) => {
     token_bought_amount AS amount_out,
     token_sold_symbol AS token_in,
     token_bought_symbol AS token_out
-FROM "dex.trades"
+FROM public."dex.trades"
 WHERE block_time BETWEEN TIMESTAMP '2024-01-01' AND TIMESTAMP '2024-01-31'
 AND token_sold_symbol = 'WETH'
 AND token_bought_symbol = 'USDT'
