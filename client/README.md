@@ -122,3 +122,5 @@ Once everything is running, you will see a **line chart** comparing **Uniswap V2
 - **Cowswap data is not implemented yet** (left out for scope reasons).
 - **Potential improvements**: UI enhancements, API error handling.
 - A repository branch was created to make data input **more dynamic**, including a UI form that allows users to select token pairs and time frames dynamically.
+
+![Screenshot of app](../data/Screenshot%201.png)
