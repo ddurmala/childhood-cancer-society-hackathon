@@ -5,8 +5,8 @@ const express = require("express");
 const app = express();
 app.use(cors());
 
-const { fetchUniswapV2, fetchUniswapV3 } = require("./fetchData");
-const db = require("./db");
+const { fetchUniswapV2, fetchUniswapV3 } = require("./server/fetchData");
+const db = require("./server/db");
 
 const PORT = process.env.PORT || 3001;
 
