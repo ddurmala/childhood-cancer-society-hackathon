@@ -4,8 +4,7 @@
   "description": "Fetches and analyzes Uniswap swap data, compares with Binance, and visualizes results.",
   "main": "server.js",
   "scripts": {
-    "start": "cd server && npm install && npx sequelize db:migrate && cd .. && node server.js",
-    "dev": "nodemon server.js",
+    "start": "npm install && node server.js",
     "install-client": "cd client && npm install",
     "install-server": "cd server && npm install",
     "install-all": "npm run install-client && npm run install-server"
